@@ -1,3 +1,4 @@
+import httpx
 from redress import Classification, ErrorClass
 
 from .errors import (
@@ -18,7 +19,7 @@ def classify_upstream_error(exc: BaseException) -> ErrorClass | Classification:
     if isinstance(exc, UpstreamTransientError):
         return ErrorClass.TRANSIENT
 
-    if isinstance(exc, UpstreamTimeoutError):
+    if isinstance(exc, (UpstreamTimeoutError, TimeoutError, httpx.TimeoutException)):
         return ErrorClass.TRANSIENT
 
     if isinstance(exc, UpstreamPermanentError):

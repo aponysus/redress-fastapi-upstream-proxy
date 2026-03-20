@@ -1,4 +1,7 @@
+from dataclasses import dataclass
 from typing import Any
+
+from redress import ErrorClass, StopReason
 
 
 class UpstreamError(Exception):
@@ -31,3 +34,13 @@ class UpstreamPermanentError(UpstreamError):
 
 class UpstreamTimeoutError(UpstreamError):
     pass
+
+
+@dataclass(frozen=True)
+# Ruff wants Exception subclasses to end with Error, but ProxyFailure is the
+# clearest service-layer name for this demo.
+class ProxyFailure(Exception):  # noqa: N818
+    status_code: int
+    detail: str
+    stop_reason: StopReason | None = None
+    last_class: ErrorClass | None = None

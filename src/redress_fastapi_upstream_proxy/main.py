@@ -8,6 +8,7 @@ from .config import Settings, get_settings
 from .policies import build_upstream_policy
 from .routes.health import router as health_router
 from .routes.proxy import router as proxy_router
+from .service import ProxyService
 from .upstream_client import UpstreamDemoClient
 
 
@@ -20,7 +21,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             base_url=app_settings.upstream_base_url,
             timeout=app_settings.upstream_timeout_s,
         ) as http_client:
-            app.state.upstream_client = UpstreamDemoClient(http_client)
+            upstream_client = UpstreamDemoClient(http_client)
+            app.state.upstream_client = upstream_client
+            app.state.proxy_service = ProxyService(
+                upstream_client=upstream_client,
+                policy=app.state.upstream_policy,
+                operation_name=app_settings.upstream_operation_name,
+            )
             yield
 
     app = FastAPI(
