@@ -27,7 +27,7 @@ async def test_retry_after_route_uses_rate_limit_classification_and_header_delay
     assert [event["event"] for event in events] == ["retry", "success"]
 
     retry_event = events[0]
-    assert retry_event["klass"] == "RATE_LIMIT"
+    assert retry_event["class"] == "RATE_LIMIT"
     assert retry_event["err"] == "UpstreamRateLimitedError"
     assert retry_event["cause"] == "exception"
     assert retry_event["sleep_s"] == pytest.approx(0.02, abs=0.01)

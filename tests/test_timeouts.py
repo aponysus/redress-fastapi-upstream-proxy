@@ -24,7 +24,7 @@ async def test_proxy_call_maps_slow_timeout_to_deadline_exceeded(proxy_client):
 
     events = events_response.json()["events"]
     assert [event["event"] for event in events] == ["retry", "deadline_exceeded"]
-    assert events[-1]["klass"] == "TRANSIENT"
+    assert events[-1]["class"] == "TRANSIENT"
     assert events[-1]["stop_reason"] == "DEADLINE_EXCEEDED"
     assert events[-1]["err"] == "TimeoutError"
     assert events[-1]["cause"] == "exception"

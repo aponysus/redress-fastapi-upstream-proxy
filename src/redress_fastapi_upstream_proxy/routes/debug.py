@@ -10,5 +10,7 @@ router = APIRouter(prefix="/debug", tags=["debug"])
 async def debug_events(request: Request) -> DebugEventsResponse:
     recorder: EventRecorder = request.app.state.event_recorder
     return DebugEventsResponse(
-        events=[DebugEventRecord(**event.__dict__) for event in recorder.list_events()]
+        events=[
+            DebugEventRecord.model_validate(event.to_payload()) for event in recorder.list_events()
+        ]
     )

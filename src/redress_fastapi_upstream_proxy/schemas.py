@@ -1,6 +1,6 @@
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ProxyLastError(BaseModel):
@@ -25,10 +25,12 @@ class ProxyExecuteResponse(BaseModel):
 
 
 class DebugEventRecord(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     event: str
     attempt: int
     sleep_s: float
-    klass: str | None = None
+    error_class: str | None = Field(default=None, alias="class")
     stop_reason: str | None = None
     operation: str | None = None
     err: str | None = None

@@ -25,7 +25,7 @@ async def test_proxy_call_does_not_retry_permanent_failure(proxy_client):
     events = events_response.json()["events"]
     assert len(events) == 1
     assert events[0]["event"] == "permanent_fail"
-    assert events[0]["klass"] == "PERMANENT"
+    assert events[0]["class"] == "PERMANENT"
     assert events[0]["stop_reason"] == "NON_RETRYABLE_CLASS"
     assert events[0]["err"] == "UpstreamPermanentError"
     assert events[0]["cause"] == "exception"

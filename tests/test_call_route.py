@@ -28,7 +28,7 @@ async def test_proxy_call_retries_transient_failure_and_emits_retry_events(proxy
     assert [event["attempt"] for event in events] == [1, 2, 3]
 
     first_retry = events[0]
-    assert first_retry["klass"] == "TRANSIENT"
+    assert first_retry["class"] == "TRANSIENT"
     assert first_retry["err"] == "UpstreamTransientError"
     assert first_retry["cause"] == "exception"
     assert first_retry["operation"] == "proxy_upstream_demo"
