@@ -97,6 +97,38 @@ class ProxyService:
         )
         return _serialize_outcome(outcome, operation=self._operation_name)
 
+    async def proxy_no_retry(
+        self,
+        *,
+        mode: str,
+        scenario_id: str | None = None,
+        failures: int | None = None,
+        retry_after_s: float | None = None,
+        status_code: int | None = None,
+        delay_s: float | None = None,
+    ) -> dict[str, Any]:
+        call_upstream = self._build_upstream_operation(
+            mode=mode,
+            scenario_id=scenario_id,
+            failures=failures,
+            retry_after_s=retry_after_s,
+            status_code=status_code,
+            delay_s=delay_s,
+        )
+
+        try:
+            return await call_upstream()
+        except (
+            UpstreamPermanentError,
+            UpstreamRateLimitedError,
+            UpstreamTimeoutError,
+            UpstreamTransientError,
+            TimeoutError,
+            httpx.HTTPError,
+            ValueError,
+        ) as exc:
+            raise self._map_terminal_failure(exc, None) from exc
+
     def _map_terminal_failure(
         self,
         exc: BaseException,
