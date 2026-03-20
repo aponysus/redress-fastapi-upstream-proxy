@@ -5,6 +5,7 @@ import httpx
 from fastapi import FastAPI
 
 from .config import Settings, get_settings
+from .policies import build_upstream_policy
 from .routes.health import router as health_router
 from .routes.proxy import router as proxy_router
 from .upstream_client import UpstreamDemoClient
@@ -28,6 +29,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     app.state.settings = app_settings
+    app.state.upstream_policy = build_upstream_policy(app_settings)
     app.include_router(health_router)
     app.include_router(proxy_router)
     return app
