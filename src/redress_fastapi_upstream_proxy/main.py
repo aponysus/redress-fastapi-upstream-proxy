@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from .config import Settings, get_settings
 from .routes.health import router as health_router
 from .routes.proxy import router as proxy_router
+from .upstream_client import UpstreamDemoClient
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -18,7 +19,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             base_url=app_settings.upstream_base_url,
             timeout=app_settings.upstream_timeout_s,
         ) as http_client:
-            app.state.http_client = http_client
+            app.state.upstream_client = UpstreamDemoClient(http_client)
             yield
 
     app = FastAPI(

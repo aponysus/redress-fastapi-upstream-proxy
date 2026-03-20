@@ -1,20 +1,21 @@
 import httpx
 from fastapi import APIRouter, HTTPException, Request
 
+from ..upstream_client import UpstreamDemoClient
+
 router = APIRouter(prefix="/proxy", tags=["proxy"])
 
 
 @router.get("/ping")
 async def proxy_ping(request: Request) -> dict[str, object]:
-    http_client: httpx.AsyncClient = request.app.state.http_client
+    upstream_client: UpstreamDemoClient = request.app.state.upstream_client
 
     try:
-        response = await http_client.get("/ping")
-        response.raise_for_status()
-    except httpx.HTTPError as exc:
+        upstream = await upstream_client.ping()
+    except (httpx.HTTPError, ValueError) as exc:
         raise HTTPException(status_code=502, detail="Upstream ping failed.") from exc
 
     return {
         "service": "proxy",
-        "upstream": response.json(),
+        "upstream": upstream,
     }
