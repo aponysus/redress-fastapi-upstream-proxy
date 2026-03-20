@@ -1,7 +1,14 @@
 from typing import Any
 
 import httpx
-from redress import AsyncPolicy, AttemptContext, ErrorClass, RetryExhaustedError, StopReason
+from redress import (
+    AsyncPolicy,
+    AttemptContext,
+    ErrorClass,
+    RetryExhaustedError,
+    RetryOutcome,
+    StopReason,
+)
 
 from .errors import (
     ProxyFailure,
@@ -10,6 +17,7 @@ from .errors import (
     UpstreamTimeoutError,
     UpstreamTransientError,
 )
+from .schemas import ProxyExecuteResponse, ProxyLastError
 from .upstream_client import UpstreamDemoClient
 
 
@@ -35,30 +43,24 @@ class ProxyService:
         status_code: int | None = None,
         delay_s: float | None = None,
     ) -> dict[str, Any]:
-        last_attempt: AttemptContext | None = None
-
-        def capture_attempt(ctx: AttemptContext) -> None:
-            nonlocal last_attempt
-            last_attempt = ctx
-
-        async def call_upstream() -> dict[str, Any]:
-            return await self._upstream_client.get_demo(
-                mode,
-                scenario_id=scenario_id,
-                failures=failures,
-                retry_after_s=retry_after_s,
-                status_code=status_code,
-                delay_s=delay_s,
-            )
+        capture_attempt = _attempt_recorder()
+        call_upstream = self._build_upstream_operation(
+            mode=mode,
+            scenario_id=scenario_id,
+            failures=failures,
+            retry_after_s=retry_after_s,
+            status_code=status_code,
+            delay_s=delay_s,
+        )
 
         try:
             return await self._policy.call(
                 call_upstream,
                 operation=self._operation_name,
-                on_attempt_end=capture_attempt,
+                on_attempt_end=capture_attempt.record,
             )
         except RetryExhaustedError as exc:
-            raise self._map_terminal_failure(exc, last_attempt) from exc
+            raise self._map_terminal_failure(exc, capture_attempt.last_attempt) from exc
         except (
             UpstreamPermanentError,
             UpstreamRateLimitedError,
@@ -68,7 +70,32 @@ class ProxyService:
             httpx.HTTPError,
             ValueError,
         ) as exc:
-            raise self._map_terminal_failure(exc, last_attempt) from exc
+            raise self._map_terminal_failure(exc, capture_attempt.last_attempt) from exc
+
+    async def proxy_execute(
+        self,
+        *,
+        mode: str,
+        scenario_id: str | None = None,
+        failures: int | None = None,
+        retry_after_s: float | None = None,
+        status_code: int | None = None,
+        delay_s: float | None = None,
+    ) -> ProxyExecuteResponse:
+        call_upstream = self._build_upstream_operation(
+            mode=mode,
+            scenario_id=scenario_id,
+            failures=failures,
+            retry_after_s=retry_after_s,
+            status_code=status_code,
+            delay_s=delay_s,
+        )
+
+        outcome = await self._policy.execute(
+            call_upstream,
+            operation=self._operation_name,
+        )
+        return _serialize_outcome(outcome, operation=self._operation_name)
 
     def _map_terminal_failure(
         self,
@@ -85,6 +112,40 @@ class ProxyService:
             stop_reason=stop_reason,
             last_class=last_class,
         )
+
+    def _build_upstream_operation(
+        self,
+        *,
+        mode: str,
+        scenario_id: str | None,
+        failures: int | None,
+        retry_after_s: float | None,
+        status_code: int | None,
+        delay_s: float | None,
+    ):
+        async def call_upstream() -> dict[str, Any]:
+            return await self._upstream_client.get_demo(
+                mode,
+                scenario_id=scenario_id,
+                failures=failures,
+                retry_after_s=retry_after_s,
+                status_code=status_code,
+                delay_s=delay_s,
+            )
+
+        return call_upstream
+
+
+class _AttemptRecorder:
+    def __init__(self) -> None:
+        self.last_attempt: AttemptContext | None = None
+
+    def record(self, ctx: AttemptContext) -> None:
+        self.last_attempt = ctx
+
+
+def _attempt_recorder() -> _AttemptRecorder:
+    return _AttemptRecorder()
 
 
 def _stop_reason_from(
@@ -158,3 +219,40 @@ def _detail_from(
         return "Upstream communication failed."
 
     return str(exc) or "Upstream call failed."
+
+
+def _serialize_outcome(
+    outcome: RetryOutcome[dict[str, Any]],
+    *,
+    operation: str,
+) -> ProxyExecuteResponse:
+    return ProxyExecuteResponse(
+        ok=outcome.ok,
+        attempts=outcome.attempts,
+        stop_reason=outcome.stop_reason.value if outcome.stop_reason is not None else None,
+        last_class=outcome.last_class.name if outcome.last_class is not None else None,
+        cause=outcome.cause,
+        elapsed_s=outcome.elapsed_s,
+        next_sleep_s=outcome.next_sleep_s,
+        operation=operation,
+        value=outcome.value,
+        last_error=_summarize_exception(outcome.last_exception),
+    )
+
+
+def _summarize_exception(exc: BaseException | None) -> ProxyLastError | None:
+    if exc is None:
+        return None
+
+    payload_summary = getattr(exc, "payload_summary", None)
+    retry_after_s = getattr(exc, "retry_after_s", None)
+    status_code = getattr(exc, "status_code", None)
+    message = getattr(exc, "message", None) or str(exc) or type(exc).__name__
+
+    return ProxyLastError(
+        type=type(exc).__name__,
+        message=message,
+        status_code=status_code if isinstance(status_code, int) else None,
+        retry_after_s=retry_after_s if isinstance(retry_after_s, (int, float)) else None,
+        payload_summary=payload_summary if isinstance(payload_summary, dict) else None,
+    )
