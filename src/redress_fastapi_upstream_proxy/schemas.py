@@ -22,3 +22,19 @@ class ProxyExecuteResponse(BaseModel):
     operation: str | None
     value: dict[str, Any] | None
     last_error: ProxyLastError | None
+
+
+class DebugEventRecord(BaseModel):
+    event: str
+    attempt: int
+    sleep_s: float
+    klass: str | None = None
+    stop_reason: str | None = None
+    operation: str | None = None
+    err: str | None = None
+    cause: str | None = None
+    timestamp: str | None = None
+
+
+class DebugEventsResponse(BaseModel):
+    events: list[DebugEventRecord]

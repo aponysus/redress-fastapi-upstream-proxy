@@ -17,6 +17,7 @@ from .errors import (
     UpstreamTimeoutError,
     UpstreamTransientError,
 )
+from .observability import EventRecorder
 from .schemas import ProxyExecuteResponse, ProxyLastError
 from .upstream_client import UpstreamDemoClient
 
@@ -28,10 +29,12 @@ class ProxyService:
         upstream_client: UpstreamDemoClient,
         policy: AsyncPolicy,
         operation_name: str,
+        event_recorder: EventRecorder | None = None,
     ) -> None:
         self._upstream_client = upstream_client
         self._policy = policy
         self._operation_name = operation_name
+        self._event_metric_hook = None if event_recorder is None else event_recorder.metric_hook()
 
     async def proxy_call(
         self,
@@ -57,6 +60,7 @@ class ProxyService:
             return await self._policy.call(
                 call_upstream,
                 operation=self._operation_name,
+                on_metric=self._event_metric_hook,
                 on_attempt_end=capture_attempt.record,
             )
         except RetryExhaustedError as exc:
@@ -94,6 +98,7 @@ class ProxyService:
         outcome = await self._policy.execute(
             call_upstream,
             operation=self._operation_name,
+            on_metric=self._event_metric_hook,
         )
         return _serialize_outcome(outcome, operation=self._operation_name)
 

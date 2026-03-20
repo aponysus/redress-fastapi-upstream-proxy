@@ -5,7 +5,9 @@ import httpx
 from fastapi import FastAPI
 
 from .config import Settings, get_settings
+from .observability import EventRecorder
 from .policies import build_upstream_policy
+from .routes.debug import router as debug_router
 from .routes.health import router as health_router
 from .routes.proxy import router as proxy_router
 from .service import ProxyService
@@ -23,10 +25,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         ) as http_client:
             upstream_client = UpstreamDemoClient(http_client)
             app.state.upstream_client = upstream_client
+            app.state.event_recorder = EventRecorder()
             app.state.proxy_service = ProxyService(
                 upstream_client=upstream_client,
                 policy=app.state.upstream_policy,
                 operation_name=app_settings.upstream_operation_name,
+                event_recorder=app.state.event_recorder,
             )
             yield
 
@@ -39,6 +43,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.upstream_policy = build_upstream_policy(app_settings)
     app.include_router(health_router)
     app.include_router(proxy_router)
+    app.include_router(debug_router)
     return app
 
 
