@@ -1,0 +1,42 @@
+services:
+  upstream:
+    build: .
+    command:
+      [
+        "uv",
+        "run",
+        "uvicorn",
+        "upstream.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8080",
+      ]
+    environment:
+      UPSTREAM_HOST: 0.0.0.0
+      UPSTREAM_PORT: "8080"
+    ports:
+      - "8080:8080"
+
+  proxy:
+    build: .
+    command:
+      [
+        "uv",
+        "run",
+        "uvicorn",
+        "redress_fastapi_upstream_proxy.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+      ]
+    environment:
+      PROXY_HOST: 0.0.0.0
+      PROXY_PORT: "8000"
+      UPSTREAM_BASE_URL: http://upstream:8080
+      UPSTREAM_TIMEOUT_S: "5.0"
+    depends_on:
+      - upstream
+    ports:
+      - "8000:8000"
